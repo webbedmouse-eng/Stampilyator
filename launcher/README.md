@@ -32,8 +32,9 @@ https://github.com/webbedmouse-eng/Stampilyator/releases/download/v1.2.1/runtime
 
 ## Портативный режим
 
-По умолчанию runtime распаковывается в `%LOCALAPPDATA%`. Для теста или
-портативного размещения можно указать каталог:
+По умолчанию runtime распаковывается в `%LOCALAPPDATA%`. Если запись туда
+запрещена, загрузчик пробует папку рядом с собой и `Документы\Shtampilyator`.
+Для теста или портативного размещения можно указать каталог:
 
 ```powershell
 .\Штампилятор-1.2.1-bootstrap.exe --data-dir "D:\Shtampilyator"
