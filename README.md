@@ -92,12 +92,15 @@ Windows-приложение для автоматической простан�
 ## Лёгкий загрузчик
 
 Помимо полного портативного архива есть отдельный загрузчик
-`Штампилятор-1.2.1-bootstrap.exe` размером около **63 КБ**. При первом запуске
+[`Штампилятор-1.2.1-bootstrap.exe`](https://github.com/webbedmouse-eng/Stampilyator/releases/download/v1.2.1/shtampilyator-1.2.1-bootstrap.exe)
+размером около **63 КБ**. При первом запуске
 он скачивает `runtime-1.2.1.zip` (около 87 МБ), проверяет SHA-256, распаковывает
 рабочие файлы в `%LOCALAPPDATA%\Shtampilyator\runtime\1.2.1` и запускает
 приложение. При следующих запусках интернет не требуется.
 
-Источник runtime-архива по умолчанию — GitHub Releases. Если архив размещён
+Источник runtime-архива по умолчанию — GitHub Releases:
+[`runtime-1.2.1.zip`](https://github.com/webbedmouse-eng/Stampilyator/releases/download/v1.2.1/runtime-1.2.1.zip).
+Если архив размещён
 в другом месте, рядом с загрузчиком можно положить `runtime.url` с прямой
 HTTPS-ссылкой. Подробности — в [`launcher/README.md`](launcher/README.md).
 
