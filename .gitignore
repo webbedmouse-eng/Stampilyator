@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.tmp/
+build/
+dist/
+tests/samples/
+tests/*.pdf
+*.log
+.venv/
+settings.ini
+
+# Личные и временные файлы, не входящие в репозиторий
+old_rev/
+Штамп222/
+*.rar
+/QR.jpg
+/Screenshot_*.jpg

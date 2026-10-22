@@ -1,0 +1,5 @@
+PySide6>=6.10,<6.13
+PyMuPDF>=1.27,<2
+Pillow>=11,<13
+numpy>=2.0,<3
+pyinstaller>=6.16,<7
