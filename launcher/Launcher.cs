@@ -326,6 +326,60 @@ namespace ShtampilyatorBootstrap
             }
         }
 
+        private static string PickWorkDirectory()
+        {
+            string[] candidates = new string[]
+            {
+                Path.Combine(Program.DataRoot, "downloads"),
+                AppDomain.CurrentDomain.BaseDirectory,
+                Path.GetTempPath()
+            };
+            foreach (string candidate in candidates)
+            {
+                try
+                {
+                    Directory.CreateDirectory(candidate);
+                    string probe = Path.Combine(
+                        candidate,
+                        ".write-" + Guid.NewGuid().ToString("N")
+                    );
+                    File.WriteAllText(probe, "ok");
+                    File.Delete(probe);
+                    return candidate;
+                }
+                catch
+                {
+                    // Пробуем следующий каталог.
+                }
+            }
+            throw new UnauthorizedAccessException(
+                "Нет доступной папки для загрузки. Разместите загрузчик в папке, "
+                    + "куда можно записывать файлы."
+            );
+        }
+
+        private string GetCachePath(string workDir)
+        {
+            string baseName = Path.Combine(workDir, "Shtampilyator-" + Program.Version);
+            string path = baseName + ".zip";
+            if (File.Exists(path))
+            {
+                if (HashMatches(path, _sha256))
+                {
+                    return path;
+                }
+                try
+                {
+                    File.Delete(path);
+                }
+                catch
+                {
+                    return baseName + "-" + Guid.NewGuid().ToString("N") + ".zip";
+                }
+            }
+            return path;
+        }
+
         private async Task StartAsync()
         {
             if (_downloading)
@@ -336,20 +390,14 @@ namespace ShtampilyatorBootstrap
             _button.Enabled = true;
             _button.Text = "Отмена";
             _cancellation = new CancellationTokenSource();
-            string zipPath = Path.Combine(
-                Path.GetTempPath(),
-                "Shtampilyator-" + Program.Version + ".zip"
-            );
-
             try
             {
                 Directory.CreateDirectory(Program.DataRoot);
+                string workDir = PickWorkDirectory();
+                string zipPath = GetCachePath(workDir);
                 Program.Log("Старт загрузки: " + _url);
+                Program.Log("Каталог загрузки: " + workDir);
 
-                if (File.Exists(zipPath) && !HashMatches(zipPath, _sha256))
-                {
-                    File.Delete(zipPath);
-                }
                 if (!File.Exists(zipPath))
                 {
                     await DownloadAsync(zipPath, _cancellation.Token);
@@ -368,8 +416,8 @@ namespace ShtampilyatorBootstrap
 
                 Report(900, "Распаковка…");
                 string extractRoot = Path.Combine(
-                    Path.GetTempPath(),
-                    "Shtampilyator-" + Guid.NewGuid().ToString("N")
+                    workDir,
+                    "install-" + Guid.NewGuid().ToString("N")
                 );
                 try
                 {
@@ -446,6 +494,7 @@ namespace ShtampilyatorBootstrap
 
         private async Task DownloadAsync(string destination, CancellationToken token)
         {
+            string partPath = destination + "." + Guid.NewGuid().ToString("N") + ".part";
             using (HttpClient client = new HttpClient())
             {
                 client.Timeout = TimeSpan.FromMinutes(30);
@@ -462,12 +511,10 @@ namespace ShtampilyatorBootstrap
                 {
                     response.EnsureSuccessStatusCode();
                     long total = response.Content.Headers.ContentLength ?? -1;
-                    using (
-                        Stream input = await response.Content.ReadAsStreamAsync()
-                    )
+                    using (Stream input = await response.Content.ReadAsStreamAsync())
                     using (
                         FileStream output = new FileStream(
-                            destination + ".part",
+                            partPath,
                             FileMode.Create,
                             FileAccess.Write,
                             FileShare.None,
@@ -510,7 +557,7 @@ namespace ShtampilyatorBootstrap
             {
                 File.Delete(destination);
             }
-            File.Move(destination + ".part", destination);
+            File.Move(partPath, destination);
             Report(850, "Загрузка завершена");
         }
 
