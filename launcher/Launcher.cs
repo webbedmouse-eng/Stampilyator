@@ -32,6 +32,7 @@ namespace ShtampilyatorBootstrap
             "e20861f999d3579705a01a53a93b17be4b2d602ef1caf8a75c19887ce70eed05";
 
         private static string _dataRoot;
+        private static string _runtimeRoot;
 
         internal static string DataRoot
         {
@@ -63,7 +64,86 @@ namespace ShtampilyatorBootstrap
 
         internal static string RuntimeRoot
         {
-            get { return Path.Combine(DataRoot, "runtime", Version); }
+            get
+            {
+                if (_runtimeRoot != null)
+                {
+                    return _runtimeRoot;
+                }
+                string installed = FindInstalledRuntime();
+                if (installed != null)
+                {
+                    return installed;
+                }
+                return Path.Combine(DataRoot, "runtime", Version);
+            }
+        }
+
+        private static string[] InstallRoots()
+        {
+            return new string[]
+            {
+                DataRoot,
+                AppDomain.CurrentDomain.BaseDirectory,
+                Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    "Shtampilyator"
+                )
+            };
+        }
+
+        internal static string FindInstalledRuntime()
+        {
+            foreach (string root in InstallRoots())
+            {
+                try
+                {
+                    string candidate = Path.Combine(root, "runtime", Version);
+                    if (File.Exists(Path.Combine(candidate, AppExe)))
+                    {
+                        _runtimeRoot = candidate;
+                        return candidate;
+                    }
+                }
+                catch
+                {
+                    // Проверяем следующий вариант.
+                }
+            }
+            return null;
+        }
+
+        internal static string ChooseInstallRuntime()
+        {
+            foreach (string root in InstallRoots())
+            {
+                string candidate = Path.Combine(root, "runtime", Version);
+                try
+                {
+                    if (Directory.Exists(candidate))
+                    {
+                        Directory.Delete(candidate, true);
+                    }
+                    Directory.CreateDirectory(candidate);
+                    string probe = Path.Combine(
+                        candidate,
+                        ".write-" + Guid.NewGuid().ToString("N")
+                    );
+                    File.WriteAllText(probe, "ok");
+                    File.Delete(probe);
+                    Directory.Delete(candidate, true);
+                    _runtimeRoot = candidate;
+                    return candidate;
+                }
+                catch
+                {
+                    // Пробуем следующий каталог.
+                }
+            }
+            throw new UnauthorizedAccessException(
+                "Не удалось найти папку для установки. Разместите загрузчик "
+                    + "в папке «Документы» или «Загрузки»."
+            );
         }
 
         internal static string AppPath
@@ -194,7 +274,7 @@ namespace ShtampilyatorBootstrap
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            if (File.Exists(AppPath))
+            if (FindInstalledRuntime() != null && File.Exists(AppPath))
             {
                 try
                 {
@@ -433,13 +513,8 @@ namespace ShtampilyatorBootstrap
                         );
                     }
                     string sourceDir = Path.GetDirectoryName(found);
-                    string parent = Path.GetDirectoryName(Program.RuntimeRoot);
-                    Directory.CreateDirectory(parent);
-                    if (Directory.Exists(Program.RuntimeRoot))
-                    {
-                        Directory.Delete(Program.RuntimeRoot, true);
-                    }
-                    Directory.Move(sourceDir, Program.RuntimeRoot);
+                    string target = Program.ChooseInstallRuntime();
+                    MoveOrCopyDirectory(sourceDir, target);
                 }
                 finally
                 {
@@ -575,6 +650,37 @@ namespace ShtampilyatorBootstrap
                     .Replace("-", "")
                     .ToLowerInvariant();
                 return String.Equals(actual, expected.Trim().ToLowerInvariant(), StringComparison.Ordinal);
+            }
+        }
+
+        private static void MoveOrCopyDirectory(string source, string target)
+        {
+            try
+            {
+                Directory.Move(source, target);
+                return;
+            }
+            catch (IOException)
+            {
+                // Между разными дисками Directory.Move не работает.
+            }
+            CopyDirectory(source, target);
+            Directory.Delete(source, true);
+        }
+
+        private static void CopyDirectory(string source, string target)
+        {
+            Directory.CreateDirectory(target);
+            foreach (string file in Directory.GetFiles(source))
+            {
+                File.Copy(file, Path.Combine(target, Path.GetFileName(file)), true);
+            }
+            foreach (string directory in Directory.GetDirectories(source))
+            {
+                CopyDirectory(
+                    directory,
+                    Path.Combine(target, Path.GetFileName(directory))
+                );
             }
         }
 
