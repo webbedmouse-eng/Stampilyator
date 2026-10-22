@@ -1,0 +1,5 @@
+# URL runtime-архива.
+# Скопируйте этот файл рядом с Штампилятор-1.2.1-bootstrap.exe
+# под именем runtime.url, если архив лежит не в GitHub Releases.
+# Первая непустая строка, не начинающаяся с #, используется как URL.
+https://example.com/runtime-1.2.1.zip
