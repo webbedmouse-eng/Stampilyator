@@ -113,6 +113,27 @@ namespace ShtampilyatorBootstrap
             return null;
         }
 
+        internal static bool InstalledHashMatches(string expected)
+        {
+            try
+            {
+                string marker = Path.Combine(RuntimeRoot, ".runtime.sha256");
+                if (!File.Exists(AppPath) || !File.Exists(marker))
+                {
+                    return false;
+                }
+                return String.Equals(
+                    File.ReadAllText(marker).Trim(),
+                    expected.Trim(),
+                    StringComparison.OrdinalIgnoreCase
+                );
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         internal static string ChooseInstallRuntime()
         {
             foreach (string root in InstallRoots())
@@ -274,7 +295,11 @@ namespace ShtampilyatorBootstrap
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            if (FindInstalledRuntime() != null && File.Exists(AppPath))
+            if (
+                FindInstalledRuntime() != null
+                && File.Exists(AppPath)
+                && InstalledHashMatches(ResolveHash(args))
+            )
             {
                 try
                 {
@@ -515,6 +540,10 @@ namespace ShtampilyatorBootstrap
                     string sourceDir = Path.GetDirectoryName(found);
                     string target = Program.ChooseInstallRuntime();
                     MoveOrCopyDirectory(sourceDir, target);
+                    File.WriteAllText(
+                        Path.Combine(Program.RuntimeRoot, ".runtime.sha256"),
+                        _sha256
+                    );
                 }
                 finally
                 {
