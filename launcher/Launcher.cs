@@ -29,7 +29,7 @@ namespace ShtampilyatorBootstrap
         internal const string DefaultUrl =
             "https://github.com/webbedmouse-eng/Stampilyator/releases/download/v1.2.1/runtime-1.2.1.zip";
         internal const string DefaultSha256 =
-            "e20861f999d3579705a01a53a93b17be4b2d602ef1caf8a75c19887ce70eed05";
+            "fd74bc8d7107f144dd5806420687e9eed70be7caf73596327205240cd5d4561b";
 
         private static string _dataRoot;
         private static string _runtimeRoot;

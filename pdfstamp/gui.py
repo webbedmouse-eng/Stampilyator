@@ -26,6 +26,7 @@ from PySide6.QtGui import (
     QColor,
     QDesktopServices,
     QFont,
+    QFontMetrics,
     QIcon,
     QImage,
     QPainter,
@@ -351,9 +352,16 @@ class StampPreview(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._pixmap: QPixmap | None = None
+        self._caption = ""
+        self._caption_color = QColor(0, 0, 0)
         self.setMinimumHeight(158)
         self.setMaximumHeight(185)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    def set_caption(self, text: str, color: QColor | None = None) -> None:
+        self._caption = (text or "").strip()
+        self._caption_color = QColor(color) if color is not None else QColor(0, 0, 0)
+        self.update()
 
     def set_image(self, image: QImage | QPixmap | bytes | None) -> None:
         if image is None:
@@ -416,7 +424,10 @@ class StampPreview(QWidget):
             )
             return
 
-        target = QRectF(self.rect()).adjusted(16, 14, -16, -14)
+        caption_height = 30.0 if self._caption else 0.0
+        target = QRectF(self.rect()).adjusted(
+            16, 14, -16, -14 - caption_height
+        )
         scaled = self._pixmap.scaled(
             target.size().toSize(),
             Qt.KeepAspectRatio,
@@ -430,6 +441,21 @@ class StampPreview(QWidget):
         painter.setBrush(QColor(20, 35, 60, 30))
         painter.drawRoundedRect(shadow.adjusted(2, 2, -2, -2), 4, 4)
         painter.drawPixmap(int(x), int(y), scaled)
+
+        if self._caption:
+            caption_rect = QRectF(
+                target.left(),
+                target.bottom() + 3,
+                target.width(),
+                max(16.0, caption_height - 3),
+            )
+            font = QFont("Arial", 9)
+            painter.setFont(font)
+            painter.setPen(self._caption_color)
+            caption = QFontMetrics(font).elidedText(
+                self._caption, Qt.ElideRight, int(caption_rect.width())
+            )
+            painter.drawText(caption_rect, Qt.AlignCenter, caption)
 
 
 class PdfTable(QTableWidget):
@@ -975,15 +1001,33 @@ class MainWindow(QMainWindow):
     def _show_thanks(self) -> None:
         ThanksDialog(self).exec()
 
-    def _on_editor_saved(self, path: str) -> None:
+    def _on_editor_saved(
+        self, path: str, width_mm: float, height_mm: float
+    ) -> None:
         stamp_path = Path(path)
         if not stamp_path.is_file():
             return
         self._template_is_example = False
         self._load_template(stamp_path, silent=True)
+        if self._template is None:
+            return
+        self._updating_sizes = True
+        try:
+            self.width_spin.setValue(
+                max(self.width_spin.minimum(), min(self.width_spin.maximum(), width_mm))
+            )
+            self.height_spin.setValue(
+                max(
+                    self.height_spin.minimum(),
+                    min(self.height_spin.maximum(), height_mm),
+                )
+            )
+        finally:
+            self._updating_sizes = False
         self._last_template_dir = str(stamp_path.parent)
         self.summary_label.setText(f"Создан шаблон: {stamp_path.name}")
         self.tabs.setCurrentIndex(0)
+        self._update_ready_state()
         self._queue_save()
 
     def _build_ui(self) -> None:
@@ -1517,7 +1561,11 @@ class MainWindow(QMainWindow):
         ):
             check.toggled.connect(lambda *_: self._queue_save())
         self.text_edit.textChanged.connect(lambda *_: self._queue_save())
+        self.text_edit.textChanged.connect(lambda *_: self._update_preview_caption())
+        self.text_gap_spin.valueChanged.connect(lambda *_: self._update_preview_caption())
+        self.text_font_spin.valueChanged.connect(lambda *_: self._update_preview_caption())
         self.text_color_edit.textChanged.connect(self._update_color_preview)
+        self.text_color_edit.textChanged.connect(lambda *_: self._update_preview_caption())
         self.text_color_edit.textChanged.connect(lambda *_: self._queue_save())
         self.text_color_button.clicked.connect(self._choose_text_color)
         self.output_edit.textChanged.connect(lambda *_: self._queue_save())
@@ -1833,6 +1881,7 @@ class MainWindow(QMainWindow):
         pix = QPixmap()
         pix.loadFromData(template.png_bytes, "PNG")
         self.preview.set_image(pix)
+        self._update_preview_caption()
         suffix = " · пример" if example else ""
         self.template_info.setText(
             f"{path.name} · {template.width_px}×{template.height_px} px"
@@ -1892,7 +1941,22 @@ class MainWindow(QMainWindow):
 
     def _text_toggled(self, checked: bool) -> None:
         self.text_panel.setVisible(checked)
+        self._update_preview_caption()
         self._queue_save()
+
+    def _update_preview_caption(self) -> None:
+        if not hasattr(self, "preview"):
+            return
+        if self.add_text.isChecked():
+            text = self.text_edit.text().strip()
+            try:
+                red, green, blue = parse_color(self.text_color_edit.text())
+                color = QColor(red, green, blue)
+            except StampError:
+                color = QColor(0, 0, 0)
+            self.preview.set_caption(text, color)
+        else:
+            self.preview.set_caption("", QColor(0, 0, 0))
 
     def _update_color_preview(self) -> None:
         try:

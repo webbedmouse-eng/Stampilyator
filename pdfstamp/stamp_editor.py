@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -19,6 +20,7 @@ from PySide6.QtGui import (
     QPolygonF,
 )
 from PySide6.QtWidgets import (
+    QCheckBox,
     QColorDialog,
     QComboBox,
     QDoubleSpinBox,
@@ -143,6 +145,35 @@ def signature_half_extents(signature: SignatureImage) -> tuple[float, float]:
     half_w = (signature.width_mm * cos_a + signature.height_mm * sin_a) / 2.0
     half_h = (signature.width_mm * sin_a + signature.height_mm * cos_a) / 2.0
     return half_w, half_h
+
+
+def content_required_size(design: StampDesign) -> tuple[float, float]:
+    """Минимальный внешний размер рамки по тексту, отступам и толщине рамки."""
+    lines = _design_lines(design)
+    if not lines:
+        return MIN_WIDTH_MM, MIN_HEIGHT_MM
+    dpi = 300.0
+    metrics = [_line_metrics(line, dpi) for line in lines]
+    text_width = max(fm.horizontalAdvance(line.text) for line, _font, fm in metrics)
+    heights = [fm.height() for _line, _font, fm in metrics]
+    gap = max(1.0, max(heights) * 0.25)
+    text_height = sum(heights) + gap * (len(heights) - 1)
+    width = (
+        text_width / dpi * MM_PER_INCH
+        + 2.0 * max(0.0, design.padding_mm)
+        + max(0.0, design.border_mm)
+        + 0.2
+    )
+    height = (
+        text_height / dpi * MM_PER_INCH
+        + 2.0 * max(0.0, design.padding_mm)
+        + max(0.0, design.border_mm)
+        + 0.2
+    )
+    return (
+        max(MIN_WIDTH_MM, min(MAX_WIDTH_MM, round(width, 1))),
+        max(MIN_HEIGHT_MM, min(MAX_HEIGHT_MM, round(height, 1))),
+    )
 
 
 def validate_design(design: StampDesign) -> None:
@@ -714,7 +745,7 @@ class LineRow(QFrame):
 class StampEditorPage(QScrollArea):
     """Страница редактора штампа на вкладке «Редактор»."""
 
-    saved = Signal(str)
+    saved = Signal(str, float, float)
 
     def __init__(self, save_dir: Path, parent=None) -> None:
         super().__init__(parent)
@@ -762,6 +793,13 @@ class StampEditorPage(QScrollArea):
         self.height_spin = self._mm_spin(MAX_HEIGHT_MM, MIN_HEIGHT_MM, MAX_HEIGHT_MM)
         size_row.addWidget(self.height_spin, 1)
         layout.addLayout(size_row)
+
+        self.fit_content = QCheckBox("По содержимому")
+        self.fit_content.setToolTip(
+            "Подбирать ширину и высоту рамки по тексту, шрифту и отступам"
+        )
+        layout.addWidget(self.fit_content)
+
         self.canvas_hint = QLabel("Поле: 100 × 70 мм")
         self.canvas_hint.setObjectName("Hint")
         left.addWidget(self.canvas_hint)
@@ -874,6 +912,22 @@ class StampEditorPage(QScrollArea):
         self.color_button.clicked.connect(self._choose_color)
         self.border_spin.valueChanged.connect(self._refresh_preview)
         self.padding_spin.valueChanged.connect(self._refresh_preview)
+        self.fit_content.toggled.connect(self._fit_toggled)
+
+    def _fit_toggled(self, checked: bool) -> None:
+        self.width_spin.setEnabled(not checked)
+        self.height_spin.setEnabled(not checked)
+        self._refresh_preview()
+
+    def _set_size_values(self, width: float, height: float) -> None:
+        self.width_spin.blockSignals(True)
+        self.height_spin.blockSignals(True)
+        try:
+            self.width_spin.setValue(width)
+            self.height_spin.setValue(height)
+        finally:
+            self.width_spin.blockSignals(False)
+            self.height_spin.blockSignals(False)
 
     def _add_line(self, text: str) -> None:
         if self._rows:
@@ -954,6 +1008,11 @@ class StampEditorPage(QScrollArea):
 
     def _refresh_preview(self) -> None:
         design = self._collect_design()
+        if self.fit_content.isChecked():
+            width, height = content_required_size(design)
+            self._set_size_values(width, height)
+            design.width_mm = width
+            design.height_mm = height
         self.canvas_hint.setText(
             f"Поле: {design.width_mm:g} × {design.height_mm:g} мм"
         )
@@ -1012,7 +1071,7 @@ class StampEditorPage(QScrollArea):
         try:
             self._save_dir.mkdir(parents=True, exist_ok=True)
             stamp = render_stamp(design, dpi=300.0)
-            path = self._unique_path()
+            path = self._unique_path(design)
             if not stamp.save(str(path), "PNG"):
                 raise OSError("не удалось записать PNG")
         except (OSError, PermissionError) as exc:
@@ -1024,13 +1083,23 @@ class StampEditorPage(QScrollArea):
             return
 
         self.save_hint.setText(f"Сохранено: {path.name}")
-        self.saved.emit(str(path))
+        self.saved.emit(str(path), design.width_mm, design.height_mm)
 
-    def _unique_path(self) -> Path:
-        base = self._save_dir / f"stamp_{datetime.now():%Y%m%d_%H%M%S}"
-        path = base.with_suffix(".png")
+    def _unique_path(self, design: StampDesign) -> Path:
+        first = next((line.text.strip() for line in _design_lines(design)), "")
+        safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "", first)
+        safe = re.sub(r"\s+", "_", safe).strip(" ._")
+        safe = re.sub(r"_+", "_", safe)[:40].strip(" ._")
+        if not safe or safe.upper() in {
+            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4",
+            "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2",
+            "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        }:
+            safe = "Штамп"
+        stamp = datetime.now().strftime("%d%m%Y_%H%M%S")
+        path = self._save_dir / f"{safe}_{stamp}.png"
         counter = 2
         while path.exists():
-            path = base.with_name(f"{base.name}_{counter}.png")
+            path = self._save_dir / f"{safe}_{stamp}_{counter}.png"
             counter += 1
         return path

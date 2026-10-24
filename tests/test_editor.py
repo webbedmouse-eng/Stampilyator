@@ -13,6 +13,7 @@ from pdfstamp.stamp_editor import (
     SignatureImage,
     StampDesign,
     TextLine,
+    content_required_size,
     render_stamp,
     validate_design,
 )
@@ -81,6 +82,18 @@ class StampEditorTests(unittest.TestCase):
         )
         with self.assertRaises(StampError):
             validate_design(design)
+
+    def test_content_size_follows_text_and_padding(self) -> None:
+        small = StampDesign(lines=[TextLine(text="A")], padding_mm=2.0)
+        large = StampDesign(
+            lines=[TextLine(text="ОЧЕНЬ ДЛИННАЯ СТРОКА ДЛЯ ШТАМПА")],
+            padding_mm=2.0,
+        )
+        small_w, small_h = content_required_size(small)
+        large_w, large_h = content_required_size(large)
+        self.assertGreaterEqual(small_w, 10.0)
+        self.assertGreater(large_w, small_w)
+        self.assertGreaterEqual(large_h, 10.0)
 
     def test_dimensions_are_limited(self) -> None:
         design = StampDesign(width_mm=110)
