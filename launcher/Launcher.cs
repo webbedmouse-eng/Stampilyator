@@ -17,19 +17,19 @@ using System.Windows.Forms;
 [assembly: AssemblyDescription("Загружает рабочие файлы Штампилятора при первом запуске")]
 [assembly: AssemblyProduct("Штампилятор")]
 [assembly: AssemblyCompany("Volgodonsk")]
-[assembly: AssemblyVersion("1.2.1.0")]
-[assembly: AssemblyFileVersion("1.2.1.0")]
+[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyFileVersion("1.3.0.0")]
 
 namespace ShtampilyatorBootstrap
 {
     internal static class Program
     {
-        internal const string Version = "1.2.1";
+        internal const string Version = "1.3.0";
         internal const string AppExe = "Штампилятор.exe";
         internal const string DefaultUrl =
-            "https://github.com/webbedmouse-eng/Stampilyator/releases/download/v1.2.1/runtime-1.2.1.zip";
+            "https://github.com/webbedmouse-eng/Stampilyator/releases/download/v1.3.0/runtime-1.3.0.zip";
         internal const string DefaultSha256 =
-            "ddc07a55507cc9bbf97014229d3b8351817063b149d66da08ff293fc19a15a2e";
+            "4d12c5ae20c92abd0f763d12fe546469899bff9f2974b576577470c990c58fe2";
 
         private static string _dataRoot;
         private static string _runtimeRoot;
@@ -331,7 +331,7 @@ namespace ShtampilyatorBootstrap
             _url = Program.ResolveUrl(args);
             _sha256 = Program.ResolveHash(args);
 
-            Text = "Штампилятор 1.2.1";
+            Text = "Штампилятор 1.3.0";
             ClientSize = new Size(570, 245);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -603,7 +603,7 @@ namespace ShtampilyatorBootstrap
             {
                 client.Timeout = TimeSpan.FromMinutes(30);
                 client.DefaultRequestHeaders.UserAgent.ParseAdd(
-                    "ShtampilyatorBootstrap/1.2.1"
+                    "ShtampilyatorBootstrap/1.3.0"
                 );
                 using (
                     HttpResponseMessage response = await client.GetAsync(
