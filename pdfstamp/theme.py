@@ -61,6 +61,20 @@ QFrame#LineRow {
     border: 1px solid #E1E8F2;
     border-radius: 8px;
 }
+QFrame#LineRow[empty="true"] {
+    background: #F2F6FB;
+    border: 1px dashed #C7D4E4;
+}
+QFrame#LineRow[active="true"] {
+    background: #F7FAFF;
+    border: 1px solid #8DB4FF;
+}
+QLabel#DragHandle {
+    color: #70839B;
+    font-size: 14pt;
+    font-weight: 600;
+    background: transparent;
+}
 QPushButton#FormatToggle {
     background: #FFFFFF;
     color: #33475F;
