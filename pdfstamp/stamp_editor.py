@@ -9,9 +9,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QColor,
+    QCursor,
     QFont,
     QFontMetricsF,
     QImage,
@@ -103,7 +104,7 @@ def _as_line(line: TextLine | str) -> TextLine:
 
 
 def _design_lines(design: StampDesign) -> list[TextLine]:
-    return [line for line in map(_as_line, design.lines) if line.text.strip()]
+    return [line for line in map(_as_line, design.lines)]
 
 
 def _frame_geometry(
@@ -192,7 +193,7 @@ def validate_design(design: StampDesign) -> None:
         raise StampError("Отступ рамки от текста — от 0 до 30 мм.")
     parse_color(design.ink_color)
     lines = _design_lines(design)
-    if not lines:
+    if not lines or not any(line.text.strip() for line in lines):
         raise StampError("Добавьте хотя бы одну непустую строку текста.")
 
     dpi = 300.0
@@ -263,6 +264,9 @@ def render_stamp(design: StampDesign, dpi: float = 300.0) -> QImage:
             total_height = sum(heights) + gap * (len(heights) - 1)
             y = inner.top() + max(0.0, (inner.height() - total_height) / 2.0)
             for line, font, fm in metrics:
+                if not line.text.strip():
+                    y += fm.height() + gap
+                    continue
                 painter.setFont(font)
                 painter.setPen(QPen(color))
                 text_width = fm.horizontalAdvance(line.text)
@@ -636,24 +640,67 @@ class StampCanvas(QWidget):
         painter.end()
 
 
+class DragHandle(QLabel):
+    """Ручка для перетаскивания строки вверх/вниз."""
+
+    drag_started = Signal()
+    drag_moved = Signal(int)
+    drag_finished = Signal()
+
+    def __init__(self, parent=None) -> None:
+        super().__init__("≡", parent)
+        self.setObjectName("DragHandle")
+        self.setFixedSize(22, 27)
+        self.setAlignment(Qt.AlignCenter)
+        self.setCursor(Qt.OpenHandCursor)
+        self.setToolTip("Перетащите строку, чтобы изменить порядок")
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton:
+            self.setCursor(Qt.ClosedHandCursor)
+            self.drag_started.emit()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if event.buttons() & Qt.LeftButton:
+            self.drag_moved.emit(QCursor.pos().y())
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self.setCursor(Qt.OpenHandCursor)
+        self.drag_finished.emit()
+        event.accept()
+
+
 class LineRow(QFrame):
     """Строка текста с независимыми шрифтом, выравниванием и подчёркиванием."""
 
     changed = Signal()
     removed = Signal()
+    activated = Signal()
+    move_started = Signal()
+    move_moved = Signal(int)
+    move_finished = Signal()
 
     def __init__(self, line: TextLine, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("LineRow")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setContentsMargins(6, 5, 6, 5)
         layout.setSpacing(4)
 
         top = QHBoxLayout()
         top.setSpacing(5)
+        self.drag_handle = DragHandle()
+        top.addWidget(self.drag_handle)
         self.text_edit = QLineEdit(line.text)
         self.text_edit.setMaxLength(80)
         self.text_edit.setPlaceholderText("Текст строки")
+        self.text_edit.installEventFilter(self)
         top.addWidget(self.text_edit, 1)
         self.remove_button = QPushButton("×")
         self.remove_button.setObjectName("Ghost")
@@ -662,7 +709,9 @@ class LineRow(QFrame):
         top.addWidget(self.remove_button)
         layout.addLayout(top)
 
-        bottom = QHBoxLayout()
+        self.controls = QWidget()
+        bottom = QHBoxLayout(self.controls)
+        bottom.setContentsMargins(0, 0, 0, 0)
         bottom.setSpacing(4)
         self.font_combo = QFontComboBox()
         self.font_combo.setCurrentFont(QFont(line.font_family))
@@ -698,9 +747,12 @@ class LineRow(QFrame):
             self.underline_button,
         ):
             bottom.addWidget(button)
-        layout.addLayout(bottom)
+        layout.addWidget(self.controls)
 
-        self.text_edit.textChanged.connect(self.changed)
+        self.drag_handle.drag_started.connect(self.move_started)
+        self.drag_handle.drag_moved.connect(self.move_moved)
+        self.drag_handle.drag_finished.connect(self.move_finished)
+        self.text_edit.textChanged.connect(self._text_changed)
         self.font_combo.currentFontChanged.connect(lambda *_: self.changed.emit())
         self.size_spin.valueChanged.connect(lambda *_: self.changed.emit())
         self.align_combo.currentIndexChanged.connect(lambda *_: self.changed.emit())
@@ -708,6 +760,12 @@ class LineRow(QFrame):
         self.italic_button.toggled.connect(lambda *_: self.changed.emit())
         self.underline_button.toggled.connect(lambda *_: self.changed.emit())
         self.remove_button.clicked.connect(self.removed)
+        self._update_empty_state()
+
+    def eventFilter(self, watched, event) -> bool:
+        if watched is self.text_edit and event.type() == QEvent.FocusIn:
+            self.activated.emit()
+        return super().eventFilter(watched, event)
 
     @staticmethod
     def _format_button(text: str, tooltip: str, checked: bool) -> QPushButton:
@@ -726,6 +784,29 @@ class LineRow(QFrame):
             font.setUnderline(True)
         button.setFont(font)
         return button
+
+    def _text_changed(self) -> None:
+        self._update_empty_state()
+        if self.text_edit.hasFocus():
+            self.activated.emit()
+        self.changed.emit()
+
+    def _update_empty_state(self) -> None:
+        empty = not self.text_edit.text().strip()
+        self.text_edit.setPlaceholderText(
+            "Пустая строка — отступ" if empty else "Текст строки"
+        )
+        self.setProperty("empty", empty)
+        style = self.style()
+        style.unpolish(self)
+        style.polish(self)
+
+    def set_active(self, active: bool) -> None:
+        self.controls.setVisible(active)
+        self.setProperty("active", active)
+        style = self.style()
+        style.unpolish(self)
+        style.polish(self)
 
     def line(self) -> TextLine:
         return TextLine(
@@ -877,6 +958,8 @@ class StampEditorPage(QScrollArea):
         layout.addStretch(1)
 
         self._rows: list[LineRow] = []
+        self._active_row: LineRow | None = None
+        self._drag_row: LineRow | None = None
         self._add_line("СОГЛАСОВАНО")
         self._connect()
         self._refresh_preview()
@@ -929,6 +1012,46 @@ class StampEditorPage(QScrollArea):
             self.width_spin.blockSignals(False)
             self.height_spin.blockSignals(False)
 
+    def _activate_row(self, row: LineRow) -> None:
+        if row not in self._rows:
+            return
+        self._active_row = row
+        for candidate in self._rows:
+            candidate.set_active(candidate is row)
+
+    def _line_drag_started(self, row: LineRow) -> None:
+        if row not in self._rows:
+            return
+        self._drag_row = row
+        self._activate_row(row)
+
+    def _line_drag_moved(self, row: LineRow, global_y: int) -> None:
+        if self._drag_row is not row or row not in self._rows:
+            return
+        others = [candidate for candidate in self._rows if candidate is not row]
+        target = len(others)
+        for index, candidate in enumerate(others):
+            center = candidate.mapToGlobal(
+                QPoint(0, candidate.height() // 2)
+            ).y()
+            if global_y < center:
+                target = index
+                break
+        ordered = others[:target] + [row] + others[target:]
+        if ordered == self._rows:
+            return
+        for candidate in self._rows:
+            self.rows_layout.removeWidget(candidate)
+        self._rows = ordered
+        for candidate in ordered:
+            self.rows_layout.addWidget(candidate)
+        self._update_line_buttons()
+        self._refresh_preview()
+
+    def _line_drag_finished(self, row: LineRow) -> None:
+        if self._drag_row is row:
+            self._drag_row = None
+
     def _add_line(self, text: str) -> None:
         if self._rows:
             base = self._rows[-1].line()
@@ -948,16 +1071,27 @@ class StampEditorPage(QScrollArea):
         self._rows.append(row)
         row.changed.connect(self._refresh_preview)
         row.removed.connect(lambda r=row: self._remove_line(r))
+        row.activated.connect(lambda r=row: self._activate_row(r))
+        row.move_started.connect(lambda r=row: self._line_drag_started(r))
+        row.move_moved.connect(lambda y, r=row: self._line_drag_moved(r, y))
+        row.move_finished.connect(lambda r=row: self._line_drag_finished(r))
         self._update_line_buttons()
+        self._activate_row(row)
+        row.text_edit.setFocus()
         self._refresh_preview()
 
     def _remove_line(self, row: LineRow) -> None:
         if len(self._rows) <= 1:
             return
+        was_active = self._active_row is row
         if row in self._rows:
             self._rows.remove(row)
             self.rows_layout.removeWidget(row)
             row.deleteLater()
+        if was_active:
+            self._active_row = None
+            if self._rows:
+                self._activate_row(self._rows[0])
         self._update_line_buttons()
         self._refresh_preview()
 
@@ -1086,7 +1220,10 @@ class StampEditorPage(QScrollArea):
         self.saved.emit(str(path), design.width_mm, design.height_mm)
 
     def _unique_path(self, design: StampDesign) -> Path:
-        first = next((line.text.strip() for line in _design_lines(design)), "")
+        first = next(
+            (line.text.strip() for line in _design_lines(design) if line.text.strip()),
+            "",
+        )
         safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "", first)
         safe = re.sub(r"\s+", "_", safe).strip(" ._")
         safe = re.sub(r"_+", "_", safe)[:40].strip(" ._")

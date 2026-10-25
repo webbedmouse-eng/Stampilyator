@@ -44,6 +44,16 @@ class StampEditorTests(unittest.TestCase):
         with self.assertRaises(StampError):
             validate_design(design)
 
+    def test_empty_line_adds_vertical_spacing(self) -> None:
+        one = StampDesign(lines=[TextLine(text="СОГЛАСОВАНО")])
+        spaced = StampDesign(
+            lines=[TextLine(text="СОГЛАСОВАНО"), TextLine(text="")]
+        )
+        validate_design(spaced)
+        _one_w, one_h = content_required_size(one)
+        _spaced_w, spaced_h = content_required_size(spaced)
+        self.assertGreater(spaced_h, one_h)
+
     def test_renders_signature_with_transform(self) -> None:
         signature_image = QImage(200, 80, QImage.Format_ARGB32_Premultiplied)
         signature_image.fill(QColor(0, 0, 0, 0))
