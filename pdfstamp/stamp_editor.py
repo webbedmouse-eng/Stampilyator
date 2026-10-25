@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from .core import StampError, parse_color
+from .theme import COLORS
 
 MM_PER_INCH = 25.4
 MAX_WIDTH_MM = 100.0
@@ -576,8 +577,8 @@ class StampCanvas(QWidget):
         painter.fillRect(self.rect(), QColor("#FFFFFF"))
 
         cell = 10
-        light = QColor("#EEF2F8")
-        dark = QColor("#E2E8F2")
+        light = QColor(COLORS.canvas_light)
+        dark = QColor(COLORS.canvas_dark)
         for row, y in enumerate(range(0, self.height(), cell)):
             for col, x in enumerate(range(0, self.width(), cell)):
                 painter.fillRect(
@@ -585,7 +586,7 @@ class StampCanvas(QWidget):
                 )
 
         if self._image.isNull() or self._design is None:
-            painter.setPen(QColor("#7C8A9D"))
+            painter.setPen(QColor(COLORS.muted))
             painter.drawText(self.rect(), Qt.AlignCenter, "Предпросмотр штампа")
             painter.end()
             return
@@ -593,13 +594,13 @@ class StampCanvas(QWidget):
         target, _sx, _sy = self._display_geometry()
         self._display = target
         painter.drawImage(target, self._image)
-        painter.setPen(QPen(QColor("#C8D3E1"), 1))
+        painter.setPen(QPen(QColor(COLORS.border), 1))
         painter.setBrush(Qt.NoBrush)
         painter.drawRect(target.adjusted(-1, -1, 1, 1))
 
         if self._signature is not None:
             points, rotate_handle, _sx, _sy, _target = self._signature_points()
-            painter.setPen(QPen(QColor("#1F5EFF"), 1.5, Qt.DashLine))
+            painter.setPen(QPen(QColor(COLORS.accent), 1.5, Qt.DashLine))
             painter.setBrush(Qt.NoBrush)
             painter.drawPolygon(points)
             for name, point in self._handle_points().items():
@@ -609,12 +610,12 @@ class StampCanvas(QWidget):
                         (points[0].x() + points[1].x()) / 2,
                         (points[0].y() + points[1].y()) / 2,
                     )
-                    painter.setPen(QPen(QColor("#1F5EFF"), 1.5))
+                    painter.setPen(QPen(QColor(COLORS.accent), 1.5))
                     painter.drawLine(top, paint_handle)
                     painter.setBrush(QColor("#FFFFFF"))
                     painter.drawEllipse(paint_handle, 5.0, 5.0)
                 elif name == "move":
-                    painter.setPen(QPen(QColor("#1F5EFF"), 1.3))
+                    painter.setPen(QPen(QColor(COLORS.accent), 1.3))
                     painter.setBrush(QColor("#FFFFFF"))
                     painter.drawEllipse(point, 4.0, 4.0)
                     painter.drawLine(
@@ -626,7 +627,7 @@ class StampCanvas(QWidget):
                         QPointF(point.x(), point.y() + 6.5),
                     )
                 else:
-                    painter.setPen(QPen(QColor("#1F5EFF"), 1.5))
+                    painter.setPen(QPen(QColor(COLORS.accent), 1.5))
                     painter.setBrush(QColor("#FFFFFF"))
                     painter.drawRect(
                         QRectF(
@@ -899,7 +900,7 @@ class StampEditorPage(QScrollArea):
         color_row.addWidget(self.color_swatch)
         self.color_button = QPushButton("…")
         self.color_button.setObjectName("Secondary")
-        self.color_button.setFixedWidth(34)
+        self.color_button.setFixedWidth(46)
         self.color_button.setToolTip("Выбрать цвет оттиска")
         color_row.addWidget(self.color_button)
         layout.addLayout(color_row)
@@ -1117,14 +1118,15 @@ class StampEditorPage(QScrollArea):
             red, green, blue = parse_color(self.color_edit.text())
         except StampError as exc:
             self.color_swatch.setStyleSheet(
-                "background: #FEE2E2; border: 1px solid #DC2626; border-radius: 4px;"
+                f"background: {COLORS.danger_soft}; "
+                f"border: 1px solid {COLORS.danger}; border-radius: 5px;"
             )
             self.color_swatch.setToolTip(str(exc))
             self.color_edit.setToolTip(str(exc))
         else:
             self.color_swatch.setStyleSheet(
                 f"background: rgb({red}, {green}, {blue}); "
-                "border: 1px solid #94A3B8; border-radius: 4px;"
+                f"border: 1px solid {COLORS.faint}; border-radius: 5px;"
             )
             self.color_swatch.setToolTip(f"RGB({red}, {green}, {blue})")
             self.color_edit.setToolTip("")

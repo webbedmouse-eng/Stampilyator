@@ -78,6 +78,7 @@ from .core import (
     stamp_pdf,
 )
 from .stamp_editor import StampEditorPage, application_dir
+from .theme import COLORS
 
 
 # ---------------------------------------------------------------------------
@@ -387,10 +388,10 @@ class StampPreview(QWidget):
         painter.setClipPath(path)
 
         # Шахматка.
-        painter.fillRect(bounds, QColor("#FAFBFD"))
+        painter.fillRect(bounds, QColor(COLORS.card))
         cell = 11
-        light = QColor("#F0F3F8")
-        dark = QColor("#E3E9F2")
+        light = QColor(COLORS.check_light)
+        dark = QColor(COLORS.check_dark)
         y = 0
         row = 0
         while y < self.height():
@@ -407,13 +408,13 @@ class StampPreview(QWidget):
             row += 1
 
         painter.setClipping(False)
-        border_pen = QPen(QColor("#D7E0EC"), 1)
+        border_pen = QPen(QColor(COLORS.border), 1)
         painter.setPen(border_pen)
         painter.setBrush(Qt.NoBrush)
         painter.drawRoundedRect(bounds, 12, 12)
 
         if self._pixmap is None or self._pixmap.isNull():
-            painter.setPen(QColor("#7F8DA3"))
+            painter.setPen(QColor(COLORS.muted))
             font = QFont("Segoe UI", 10)
             font.setWeight(QFont.Medium)
             painter.setFont(font)
@@ -535,7 +536,7 @@ class PdfTable(QTableWidget):
         pages_item.setTextAlignment(Qt.AlignCenter)
         status_item = self._make_item("Ожидает", "Файл добавлен в очередь")
         status_item.setTextAlignment(Qt.AlignCenter)
-        status_item.setForeground(QColor("#64748B"))
+        status_item.setForeground(QColor(COLORS.muted))
         self.setItem(row, 0, name_item)
         self.setItem(row, 1, pages_item)
         self.setItem(row, 2, status_item)
@@ -602,21 +603,28 @@ class PdfTable(QTableWidget):
         super().dropEvent(event)
 
 
-def _status_icon(ok: bool) -> QIcon:
+def _status_icon(ok: bool, canceled: bool = False) -> QIcon:
     pixmap = QPixmap(18, 18)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
     if ok:
-        pen = QPen(QColor("#16A34A"), 2.4, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+        pen = QPen(QColor(COLORS.ok), 2.4, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
         painter.setPen(pen)
         painter.drawLine(4, 9, 7, 12)
         painter.drawLine(7, 12, 14, 4)
+    elif canceled:
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(COLORS.info))
+        painter.drawEllipse(2, 2, 14, 14)
+        painter.setPen(QPen(QColor("#FFFFFF"), 2.0, Qt.SolidLine, Qt.RoundCap))
+        painter.drawLine(9, 6, 9, 11)
+        painter.drawPoint(9, 13)
     else:
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#DC2626"))
+        painter.setBrush(QColor(COLORS.danger))
         painter.drawEllipse(2, 2, 14, 14)
-        painter.setPen(QPen(Qt.white, 2.0, Qt.SolidLine, Qt.RoundCap))
+        painter.setPen(QPen(QColor("#FFFFFF"), 2.0, Qt.SolidLine, Qt.RoundCap))
         painter.drawLine(6, 6, 12, 12)
         painter.drawLine(12, 6, 6, 12)
     painter.end()
@@ -691,7 +699,7 @@ class ResultsDialog(QDialog):
             if outcome.ok and outcome.output:
                 top.setText(1, "Готово")
                 top.setIcon(1, _status_icon(True))
-                top.setForeground(1, QColor("#137A48"))
+                top.setForeground(1, QColor(COLORS.ok))
                 skipped = len(outcome.result.skipped_pages) if outcome.result else 0
                 top.setText(2, f"Страниц: {outcome.page_count}" + (
                     f", без штампа: {skipped}" if skipped else ""
@@ -703,13 +711,13 @@ class ResultsDialog(QDialog):
                             [f"Страница {page.page_number}", "", page.note]
                         )
                         if page.skipped:
-                            child.setForeground(2, QColor("#B42318"))
+                            child.setForeground(2, QColor(COLORS.danger))
                         elif page.fallback:
-                            child.setForeground(2, QColor("#B45309"))
+                            child.setForeground(2, QColor(COLORS.warn))
                         elif page.scaled:
-                            child.setForeground(2, QColor("#B7791F"))
+                            child.setForeground(2, QColor(COLORS.warn))
                         else:
-                            child.setForeground(2, QColor("#4B5B70"))
+                            child.setForeground(2, QColor(COLORS.secondary))
                         top.addChild(child)
                     if outcome.result.fallback_pages or outcome.result.skipped_pages:
                         tree.addTopLevelItem(top)
@@ -719,14 +727,14 @@ class ResultsDialog(QDialog):
             elif outcome.canceled:
                 top.setText(1, "Ошибка")
                 top.setIcon(1, _status_icon(False))
-                top.setForeground(1, QColor("#B42318"))
+                top.setForeground(1, QColor(COLORS.danger))
                 top.setText(2, "Обработка отменена")
                 tree.addTopLevelItem(top)
                 tree.expandItem(top)
             else:
                 top.setText(1, "Ошибка")
                 top.setIcon(1, _status_icon(False))
-                top.setForeground(1, QColor("#B42318"))
+                top.setForeground(1, QColor(COLORS.danger))
                 top.setText(2, outcome.message)
                 top.setToolTip(2, outcome.message)
                 tree.addTopLevelItem(top)
@@ -1282,7 +1290,7 @@ class MainWindow(QMainWindow):
         color_row.addWidget(self.text_color_swatch)
         self.text_color_button = QPushButton("…")
         self.text_color_button.setObjectName("Secondary")
-        self.text_color_button.setFixedWidth(34)
+        self.text_color_button.setFixedWidth(46)
         self.text_color_button.setToolTip("Выбрать цвет")
         color_row.addWidget(self.text_color_button)
         text_layout.addLayout(color_row)
@@ -1745,8 +1753,24 @@ class MainWindow(QMainWindow):
                 pdfs.append(path)
             elif suffix in {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"}:
                 images.append(path)
-        if not pdfs and len(images) == 1:
-            self._load_template(images[0])
+        if not pdfs:
+            if len(images) == 1:
+                self._load_template(images[0])
+                return
+            if images:
+                QMessageBox.information(
+                    self,
+                    "Нет PDF-файлов",
+                    "Перетащено изображений: "
+                    f"{len(images)}. Загрузить изображение как шаблон можно "
+                    "только по одному — используйте кнопку «Выбрать изображение».",
+                )
+                return
+            QMessageBox.information(
+                self,
+                "Нет PDF-файлов",
+                "Перетащенные файлы не являются PDF и не были добавлены.",
+            )
             return
 
         errors: list[str] = []
@@ -1778,11 +1802,17 @@ class MainWindow(QMainWindow):
         self._update_counters()
         self._update_file_actions()
         self._update_ready_state()
-        if added:
-            self.summary_label.setText(
-                f"Добавлено файлов: {added}"
-                + (f" · пропущено дубликатов: {duplicates}" if duplicates else "")
-            )
+        ignored = len(paths) - len(pdfs)
+        if added or ignored:
+            summary = f"Добавлено файлов: {added}" if added else "PDF не добавлены"
+            if duplicates:
+                summary += f" · пропущено дубликатов: {duplicates}"
+            if ignored:
+                summary += (
+                    f" · не PDF и пропущено: {ignored} "
+                    f"({plural_ru(ignored, 'файл', 'файла', 'файлов')})"
+                )
+            self.summary_label.setText(summary)
         if errors:
             box = QMessageBox(self)
             box.setIcon(QMessageBox.Warning)
@@ -1857,22 +1887,25 @@ class MainWindow(QMainWindow):
         self._load_template(path, example=True)
 
     def _load_template(self, path: Path, silent: bool = False, example: bool = False) -> None:
+        error: str | None = None
+        template: StampTemplate | None = None
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             template = load_template(path, self.white_checkbox.isChecked())
         except StampError as exc:
-            QApplication.restoreOverrideCursor()
-            if not silent:
-                QMessageBox.warning(self, "Не удалось загрузить шаблон", str(exc))
-            return
+            error = str(exc)
         except Exception as exc:  # noqa: BLE001
-            QApplication.restoreOverrideCursor()
-            if not silent:
-                QMessageBox.warning(self, "Не удалось загрузить шаблон", str(exc))
-            return
+            error = str(exc)
         finally:
+            # Снимаем ровно один уровень курсора: снаружи может оставаться
+            # курсор ожидания от перетаскивания файлов.
             if QApplication.overrideCursor() is not None:
                 QApplication.restoreOverrideCursor()
+
+        if template is None:
+            if not silent:
+                QMessageBox.warning(self, "Не удалось загрузить шаблон", error or "")
+            return
 
         if not silent:
             self._template_is_example = example
@@ -1963,17 +1996,18 @@ class MainWindow(QMainWindow):
             red, green, blue = parse_color(self.text_color_edit.text())
         except StampError as exc:
             self.text_color_swatch.setStyleSheet(
-                "background: #FEE2E2; border: 1px solid #DC2626; border-radius: 4px;"
+                f"background: {COLORS.danger_soft}; "
+                f"border: 1px solid {COLORS.danger}; border-radius: 5px;"
             )
             self.text_color_swatch.setToolTip(str(exc))
             self.text_color_edit.setToolTip(str(exc))
             return
         self.text_color_swatch.setStyleSheet(
             f"background: rgb({red}, {green}, {blue}); "
-            "border: 1px solid #94A3B8; border-radius: 4px;"
+            f"border: 1px solid {COLORS.faint}; border-radius: 5px;"
         )
         self.text_color_swatch.setToolTip(f"RGB({red}, {green}, {blue})")
-        self.text_color_edit.setToolTip("") 
+        self.text_color_edit.setToolTip("")
 
     def _choose_text_color(self) -> None:
         try:
@@ -2114,7 +2148,7 @@ class MainWindow(QMainWindow):
                 self.table.set_status(
                     Path(str(item.data(Qt.UserRole))),
                     "В очереди",
-                    "#64748B",
+                    COLORS.muted,
                     "Ожидает обработки",
                 )
 
@@ -2189,7 +2223,7 @@ class MainWindow(QMainWindow):
 
     def _on_file_started(self, source: str) -> None:
         self.table.set_status(
-            Path(source), "Обработка…", "#B7791F", "Идёт анализ страниц и вставка штампа"
+            Path(source), "Обработка…", COLORS.warn, "Идёт анализ страниц и вставка штампа"
         )
 
     def _on_file_finished(self, outcome: FileOutcome) -> None:
@@ -2198,15 +2232,15 @@ class MainWindow(QMainWindow):
             if outcome.result and outcome.result.warnings:
                 tooltip += "\n" + "\n".join(outcome.result.warnings)
             self.table.set_status(
-                outcome.source, "Готово", "#137A48", tooltip
+                outcome.source, "Готово", COLORS.ok, tooltip
             )
         elif outcome.canceled:
             self.table.set_status(
-                outcome.source, "Отменено", "#7A8699", outcome.message
+                outcome.source, "Отменено", COLORS.info, outcome.message
             )
         else:
             self.table.set_status(
-                outcome.source, "Ошибка", "#B42318", outcome.message
+                outcome.source, "Ошибка", COLORS.danger, outcome.message
             )
 
     def _on_finished(self, outcomes: list[FileOutcome], canceled: bool) -> None:
@@ -2243,7 +2277,7 @@ class MainWindow(QMainWindow):
                 path = Path(str(table_item.data(Qt.UserRole)))
                 if str(path.resolve()).casefold() not in processed:
                     self.table.set_status(
-                        path, "Отменено", "#7A8699", "Файл не обрабатывался"
+                        path, "Отменено", COLORS.info, "Файл не обрабатывался"
                     )
         elif len(successful) == len(outcomes):
             skipped_total = sum(
