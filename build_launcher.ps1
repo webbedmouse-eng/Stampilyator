@@ -5,7 +5,7 @@
 $ErrorActionPreference = "Stop"
 Set-Location -LiteralPath $PSScriptRoot
 
-$version = "1.3.1"
+$version = "1.3.2"
 $appZip = Join-Path $PSScriptRoot "dist\Штампилятор-$version-win64.zip"
 $runtimeZip = Join-Path $PSScriptRoot "dist\runtime-$version.zip"
 $source = Join-Path $PSScriptRoot "launcher\Launcher.cs"

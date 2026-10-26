@@ -56,7 +56,7 @@ if (-not (Test-Path -LiteralPath $exe)) {
 }
 
 Write-Host "== Лицензии и исходный код ==" -ForegroundColor Cyan
-$version = "1.3.1"
+$version = "1.3.2"
 $sourceName = "Штампилятор-$version-source.zip"
 foreach ($name in @("LICENSE", "THIRD_PARTY_NOTICES.md", "SOURCE.txt")) {
     $src = Join-Path $PSScriptRoot $name

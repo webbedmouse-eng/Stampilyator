@@ -79,6 +79,7 @@ from .core import (
 )
 from .stamp_editor import StampEditorPage, application_dir
 from .theme import COLORS
+from .updates import UpdateChecker, UpdateDialog, is_newer
 
 
 # ---------------------------------------------------------------------------
@@ -986,6 +987,8 @@ class MainWindow(QMainWindow):
         self._update_output_controls()
         self._update_file_actions()
         self._update_ready_state()
+        self._update_checker: UpdateChecker | None = None
+        QTimer.singleShot(1200, self._check_for_updates)
 
     # ------------------------------------------------------------------ UI
     def _on_tab_changed(self, index: int) -> None:
@@ -1008,6 +1011,35 @@ class MainWindow(QMainWindow):
 
     def _show_thanks(self) -> None:
         ThanksDialog(self).exec()
+
+    def _updates_toggled(self, checked: bool) -> None:
+        self._queue_save()
+        if checked:
+            QTimer.singleShot(200, self._check_for_updates)
+
+    def _check_for_updates(self) -> None:
+        if not self.check_updates.isChecked() or self._update_checker is not None:
+            return
+        self._update_checker = UpdateChecker(self)
+        self._update_checker.finished.connect(self._on_update_checked)
+        self._update_checker.start()
+
+    def _on_update_checked(self, info) -> None:
+        checker = self._update_checker
+        self._update_checker = None
+        if checker is not None:
+            checker.deleteLater()
+        if (
+            info is None
+            or not self.check_updates.isChecked()
+            or not is_newer(info.version)
+        ):
+            return
+        dialog = UpdateDialog(info, self)
+        dialog.exec()
+        if dialog.disable_requested:
+            self.check_updates.setChecked(False)
+            self._save_settings()
 
     def _on_editor_saved(
         self, path: str, width_mm: float, height_mm: float
@@ -1469,6 +1501,15 @@ class MainWindow(QMainWindow):
         security.setObjectName("Hint")
         security.setWordWrap(True)
         layout.addWidget(security)
+
+        layout.addWidget(self._divider())
+        self.check_updates = QCheckBox("Проверять обновления при запуске")
+        self.check_updates.setChecked(True)
+        self.check_updates.setToolTip(
+            "Проверять последний релиз на GitHub при каждом запуске. "
+            "Можно отключить здесь или в окне обновления."
+        )
+        layout.addWidget(self.check_updates)
         layout.addStretch(1)
         return tab
 
@@ -1545,6 +1586,7 @@ class MainWindow(QMainWindow):
         self.cancel_button.clicked.connect(self._cancel_processing)
         self.open_folder_button.clicked.connect(self._open_last_folder)
         self.thanks_button.clicked.connect(self._show_thanks)
+        self.check_updates.toggled.connect(self._updates_toggled)
         self.table.itemChanged.connect(lambda _item: self._update_counters())
 
         # Автосохранение последних настроек.
@@ -1566,6 +1608,7 @@ class MainWindow(QMainWindow):
             self.allow_overlap,
             self.ignore_title_block,
             self.add_text,
+            self.check_updates,
         ):
             check.toggled.connect(lambda *_: self._queue_save())
         self.text_edit.textChanged.connect(lambda *_: self._queue_save())
@@ -1667,6 +1710,9 @@ class MainWindow(QMainWindow):
             self._settings.value("add_text", False, type=bool)
         )
         self._text_toggled(self.add_text.isChecked())
+        self.check_updates.setChecked(
+            self._settings.value("check_updates", True, type=bool)
+        )
 
         if self._settings.value("output_mode", "near", type=str) == "folder":
             self.output_folder_radio.setChecked(True)
@@ -1715,6 +1761,7 @@ class MainWindow(QMainWindow):
             "text_font_size_pt", self.text_font_spin.value()
         )
         self._settings.setValue("text_color", self.text_color_edit.text())
+        self._settings.setValue("check_updates", self.check_updates.isChecked())
         self._settings.setValue("white_background", self.white_checkbox.isChecked())
         self._settings.setValue(
             "output_mode", "folder" if self.output_folder_radio.isChecked() else "near"

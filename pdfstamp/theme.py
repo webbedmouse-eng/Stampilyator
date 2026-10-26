@@ -413,6 +413,15 @@ QPushButton#Danger:disabled {{
 }}
 
 /* ------------------------------------------------------------- поля ввода */
+QTextBrowser#UpdateNotes {{
+    background: {c.card};
+    border: 1px solid {c.border};
+    border-radius: 10px;
+    padding: 10px;
+    color: {c.secondary};
+    selection-background-color: {c.accent};
+    selection-color: #FFFFFF;
+}}
 QLineEdit, QDoubleSpinBox, QComboBox, QFontComboBox {{
     background: {c.card};
     border: 1px solid #D8DFEA;

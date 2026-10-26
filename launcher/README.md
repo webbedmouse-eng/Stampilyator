@@ -1,13 +1,13 @@
 # Лёгкий загрузчик Штампилятора
 
-`Штампилятор-1.3.1-bootstrap.exe` — отдельный маленький загрузчик (около
+`Штампилятор-1.3.2-bootstrap.exe` — отдельный маленький загрузчик (около
 63 КБ). Он не содержит PySide6/PyMuPDF/Python и при первом запуске скачивает
-рабочий архив `runtime-1.3.1.zip` (около 87 МБ).
+рабочий архив `runtime-1.3.2.zip` (около 87 МБ).
 
 ## Как работает
 
-1. Проверяет, установлена ли версия 1.3.1 в
-   `%LOCALAPPDATA%\Shtampilyator\runtime\1.3.1`.
+1. Проверяет, установлена ли версия 1.3.2 в
+   `%LOCALAPPDATA%\Shtampilyator\runtime\1.3.2`.
 2. Если нет — скачивает runtime-архив по HTTPS.
 3. Проверяет SHA-256.
 4. Распаковывает и запускает `Штампилятор.exe`.
@@ -18,14 +18,14 @@
 По умолчанию используется GitHub Releases:
 
 ```text
-https://github.com/webbedmouse-eng/Stampilyator/releases/download/v1.3.1/runtime-1.3.1.zip
+https://github.com/webbedmouse-eng/Stampilyator/releases/download/v1.3.2/runtime-1.3.2.zip
 ```
 
 Если архив размещён в другом месте, положите рядом с загрузчиком файл
 `runtime.url` с прямой HTTPS-ссылкой или передайте её параметром:
 
 ```powershell
-.\Штампилятор-1.3.1-bootstrap.exe --url "https://example.com/runtime-1.3.1.zip"
+.\Штампилятор-1.3.2-bootstrap.exe --url "https://example.com/runtime-1.3.2.zip"
 ```
 
 Хеш можно переопределить файлом `runtime.sha256` или параметром `--sha256`.
@@ -37,7 +37,7 @@ https://github.com/webbedmouse-eng/Stampilyator/releases/download/v1.3.1/runtime
 Для теста или портативного размещения можно указать каталог:
 
 ```powershell
-.\Штампилятор-1.3.1-bootstrap.exe --data-dir "D:\Shtampilyator"
+.\Штампилятор-1.3.2-bootstrap.exe --data-dir "D:\Shtampilyator"
 ```
 
 или переменной окружения `SHTAMPILYATOR_DATA_DIR`.
@@ -53,7 +53,7 @@ https://github.com/webbedmouse-eng/Stampilyator/releases/download/v1.3.1/runtime
 
 `build_launcher.ps1`:
 
-- копирует `dist\Штампилятор-1.3.1-win64.zip` в `dist\runtime-1.3.1.zip`;
+- копирует `dist\Штампилятор-1.3.2-win64.zip` в `dist\runtime-1.3.2.zip`;
 - пересчитывает SHA-256 и обновляет константу в `Launcher.cs`;
 - компилирует загрузчик через `csc.exe` из .NET Framework 4.8;
 - проверяет, что размер меньше 8 МБ.
@@ -62,4 +62,4 @@ https://github.com/webbedmouse-eng/Stampilyator/releases/download/v1.3.1/runtime
 
 Загрузчик не заменяет полноценный портативный архив. Если пользователю нужен
 офлайн-запуск без первой загрузки, распространяйте
-`Штампилятор-1.3.1-win64.zip`.
+`Штампилятор-1.3.2-win64.zip`.
